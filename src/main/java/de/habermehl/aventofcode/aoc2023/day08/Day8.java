@@ -1,5 +1,7 @@
 package de.habermehl.aventofcode.aoc2023.day08;
 
+import static de.habermehl.aventofcode.aoc2023.Utils.getLeastCommonMultiple;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -50,14 +52,6 @@ public class Day8 {
             nextWay = nodes.get(nextWay).getNext(direction);
         } while (!endCondition.test(nextWay));
         return steps;
-    }
-
-    static long getLeastCommonMultiple(long m, long n) {
-        return (m * n) / getGreatestCommonDivisor(m, n);
-    }
-
-    static long getGreatestCommonDivisor(long m, long n) {
-        return n == 0 ? m : getGreatestCommonDivisor(n, m % n);
     }
 
     private static Map<String, Node> getTargetNodes(List<String> inputLines) {

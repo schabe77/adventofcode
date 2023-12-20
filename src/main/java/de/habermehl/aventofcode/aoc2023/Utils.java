@@ -21,6 +21,14 @@ public final class Utils {
         }
     }
 
+    public static long getLeastCommonMultiple(long m, long n) {
+        return (m * n) / getGreatestCommonDivisor(m, n);
+    }
+
+    public static long getGreatestCommonDivisor(long m, long n) {
+        return n == 0 ? m : getGreatestCommonDivisor(n, m % n);
+    }
+
     public static char[][] getGrid(List<String> input) {
         char[][] grid = new char[input.size()][input.get(0).length()];
         for (int y = 0; y < input.size(); y++) {
