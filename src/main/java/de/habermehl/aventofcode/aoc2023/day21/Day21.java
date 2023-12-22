@@ -32,7 +32,7 @@ public class Day21 {
 
     public long getPart1() {
         List<Position> positions = List.of(startPosition);
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 64; i++) {
             positions = positions.stream()
                     .map(Day21::getSurroundingPoints)
                     .flatMap(List::stream)
