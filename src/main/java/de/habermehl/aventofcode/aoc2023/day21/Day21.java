@@ -43,8 +43,15 @@ public class Day21 {
         return positions.size();
     }
 
+    /**
+     * we leave the first grid after 65 steps. then we have a constant growth over
+     * 131 (grid width) * 202300 steps: 131 * 202300 + 65 = 26501365 -> the step amount
+     * this growth can be calculated with a polynomial, e.g. a*((n*(n-1))/2) + bn + c
+     * where target n is 202300
+     */
     public long getPart2() {
         long target = 26501365;
+        long n = Math.floorDiv(target, width); // should be 202300 in our case
         List<Integer> factors = new ArrayList<>();
         List<Position> positions = List.of(startPosition);
         int i = 0;
@@ -60,10 +67,17 @@ public class Day21 {
             if (i % width == target % width) {
                 factors.add(positions.size());
                 if (factors.size() == 3) {
+                    // target function is f(n) = a*(n*(n-1)/2) + b*n + c
+                    // we have points n=0, n=1, n=2 and need f(n), for n=202300
+
+                    // a*(0*(0-1)/2) + b*0 + c = factors.get(0) --> a*0 + b*0 + c = factors.get(0) --> c = factors.get(0)
                     long c = factors.get(0);
+                    // a*(1*(1-1)/2) + b*1 + c = factors.get(1) --> b + c = factors.get(1)         --> b = factors.get(1) - c
                     long b = factors.get(1) - c;
-                    long a = factors.get(2) - 2L * factors.get(1) + c;
-                    return a * ((target / width) * ((target / width) - 1) / 2) + b * (target / width) + c;
+                    // a*(2*(2-1)/2) + b*2 + c = factors.get(3) --> a + b*2 + c = factors.get(3)   --> a = factors.get(3) - b*2 - c
+                    long a = factors.get(2) - 2 * b - c;
+
+                    return a * ((n * (n - 1)) / 2) + b * n + c;
                 }
             }
         }
