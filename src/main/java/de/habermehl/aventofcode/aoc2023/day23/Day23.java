@@ -12,11 +12,8 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
 import de.habermehl.aventofcode.aoc2023.Direction;
@@ -40,9 +37,9 @@ public class Day23 {
     }
 
     Day23(List<String> inputLines) {
-        Entry<Set<Position>, List<Pose>> input = getHikingMap(inputLines);
+        Entry<Set<Position>, Map<Position, Direction>> input = getHikingMap(inputLines);
         forest = input.getKey();
-        slopes = input.getValue().stream().collect(Collectors.toMap(Pose::position, Pose::direction));
+        slopes = input.getValue();
         start = new Position(1L, 0);
         finish = new Position(inputLines.get(0).length() - 2L, inputLines.size() - 1L);
     }
@@ -55,47 +52,43 @@ public class Day23 {
         return getLongestHike(true);
     }
 
-    public long getLongestHike(boolean ignoreSlopes) {
-        Map<Position, List<PathSection>> junctions = getJunctions(ignoreSlopes);
+    private long getLongestHike(boolean ignoreSlopes) {
+        Map<Position, List<PathSection>> junctions = getCrossroads(ignoreSlopes);
+        return getLongestHikeRecursively(new ArrayList<>(List.of(junctions.get(start).iterator().next())), junctions);
+    }
 
-        List<List<PathSection>> wayCandidates = new ArrayList<>();
-        wayCandidates.add(List.of(junctions.get(start).iterator().next()));
-
+    private long getLongestHikeRecursively(ArrayList<PathSection> currentPath, Map<Position, List<PathSection>> junctions) {
+        PathSection lastStep = currentPath.get(currentPath.size() - 1);
         long longestHike = Long.MIN_VALUE;
-        while (!wayCandidates.isEmpty()) {
-            List<List<PathSection>> newWayCandidates = new ArrayList<>();
-            for (List<PathSection> wayCandidate : wayCandidates) {
-                PathSection lastStep = wayCandidate.get(wayCandidate.size() - 1);
-                for (PathSection value : junctions.get(lastStep.target())) {
-                    Position nextPosition = value.target();
-                    if (nextPosition.equals(finish)) {
-                        long wayLength = wayCandidate.stream().mapToLong(PathSection::wayLength).sum() + value.wayLength();
-                        longestHike = Math.max(longestHike, wayLength);
-                    } else if (wayCandidate.stream().noneMatch(pathSection -> pathSection.position().equals(nextPosition))) {
-                        newWayCandidates.add(ImmutableList.<PathSection>builder().addAll(wayCandidate).add(value).build());
-                    }
-                }
+        for (PathSection value : junctions.get(lastStep.target())) {
+            Position nextPosition = value.target();
+            if (nextPosition.equals(finish)) {
+                return currentPath.stream().mapToLong(PathSection::length).sum() + value.length();
             }
-            wayCandidates = newWayCandidates;
+            if (currentPath.stream().noneMatch(pathSection -> pathSection.position().equals(nextPosition))) {
+                currentPath.add(value);
+                longestHike = Math.max(longestHike, getLongestHikeRecursively(currentPath, junctions));
+                currentPath.remove(currentPath.size() - 1);
+            }
         }
         return longestHike;
     }
 
-    private Map<Position, List<PathSection>> getJunctions(boolean ignoreSlope) {
+    private Map<Position, List<PathSection>> getCrossroads(boolean ignoreSlope) {
         LongSummaryStatistics xStats = forest.stream().mapToLong(Position::x).summaryStatistics();
         LongSummaryStatistics yStats = forest.stream().mapToLong(Position::y).summaryStatistics();
         Position min = new Position(xStats.getMin(), yStats.getMin());
         Position max = new Position(xStats.getMax(), yStats.getMax());
 
-        Multimap<Position, Direction> junctions = getJunctions(min, max);
+        Multimap<Position, Direction> crossroads = getCrossroads(min, max);
         Map<Position, List<PathSection>> result = new HashMap<>();
-        for (Entry<Position, Collection<Direction>> junctionDirections : junctions.asMap().entrySet()) {
-            Position junctionPosition = junctionDirections.getKey();
-            List<PathSection> ways = junctionDirections.getValue().stream()
-                    .map(direction -> getPathSection(junctionPosition, direction, junctions.keySet(), ignoreSlope))
-                    .filter(pathSection -> pathSection.wayLength() > 0)
+        for (Entry<Position, Collection<Direction>> crossroadDirections : crossroads.asMap().entrySet()) {
+            Position crossroadPosition = crossroadDirections.getKey();
+            List<PathSection> ways = crossroadDirections.getValue().stream()
+                    .map(direction -> getPathSection(crossroadPosition, direction, crossroads.keySet(), ignoreSlope))
+                    .filter(pathSection -> pathSection.length() > 0)
                     .toList();
-            result.put(junctionDirections.getKey(), ways);
+            result.put(crossroadPosition, ways);
         }
         return result;
     }
@@ -121,37 +114,25 @@ public class Day23 {
         return new PathSection(position, testPosition, way.size() + 1L);
     }
 
-    private static Map.Entry<Set<Position>, List<Pose>> getHikingMap(List<String> inputLines) {
+    private static Map.Entry<Set<Position>, Map<Position, Direction>> getHikingMap(List<String> inputLines) {
         Set<Position> result = new HashSet<>();
-        List<Pose> slopes = new ArrayList<>();
+        Map<Position, Direction> slopes = new HashMap<>();
         for (int y = 0; y < inputLines.size(); y++) {
             final String line = inputLines.get(y);
             for (int x = 0; x < line.length(); x++) {
                 final char c = line.charAt(x);
                 Direction direction = INPUT_DIRECTIONS.get(c);
                 if (direction != null) {
-                    slopes.add(new Pose(new Position(x, y), direction));
+                    slopes.put(new Position(x, y), direction);
                 } else if (c == '#') {
                     result.add(new Position(x, y));
                 }
             }
         }
-        result.addAll(getSurroundingForest(inputLines.get(0).length(), inputLines.size()));
         return Map.entry(result, slopes);
     }
 
-    private static Set<Position> getSurroundingForest(int gridWidth, int gridHeight) {
-        Set<Position> result = new HashSet<>();
-        IntStream.of(-1, gridHeight)
-                .mapToObj(y -> IntStream.rangeClosed(-1, gridWidth).mapToObj(x -> new Position(x, y)).toList())
-                .forEach(result::addAll);
-        IntStream.of(-1, gridWidth)
-                .mapToObj(x -> IntStream.rangeClosed(-1, gridHeight).mapToObj(y -> new Position(x, y)).toList())
-                .forEach(result::addAll);
-        return result;
-    }
-
-    private Multimap<Position, Direction> getJunctions(Position min, Position max) {
+    private Multimap<Position, Direction> getCrossroads(Position min, Position max) {
         Multimap<Position, Direction> result = ArrayListMultimap.create();
         for (long y = min.y(); y <= max.y(); y++) {
             for (long x = min.x(); x < max.x(); x++) {
@@ -160,9 +141,8 @@ public class Day23 {
                     continue;
                 }
                 List<Direction> allowedDirections = ALLOWED_DIRECTIONS.stream()
-                        .filter(direction -> !forest.contains(position.moveTo(direction)))
+                        .filter(direction -> isValidPosition(position.moveTo(direction), min, max))
                         .toList();
-
                 if (allowedDirections.size() > 2 || position.equals(start) || position.equals(finish)) {
                     result.putAll(position, allowedDirections);
                 }
@@ -171,15 +151,20 @@ public class Day23 {
         return result;
     }
 
+    private boolean isValidPosition(Position position, Position min, Position max) {
+        if (forest.contains(position)) {
+            return false;
+        }
+        return min.x() <= position.x() && position.x() <= max.x()
+                && min.y() <= position.y() && position.y() <= max.y();
+    }
+
     public static void main(String... args) throws IOException {
         Day23 day = new Day23();
         System.out.println(day.getClass().getSimpleName() + " / part1: " + day.getPart1());
         System.out.println(day.getClass().getSimpleName() + " / part2: " + day.getPart2());
     }
 
-    private record PathSection(Position position, Position target, long wayLength) {
-    }
-
-    private record Pose(Position position, Direction direction) {
+    private record PathSection(Position position, Position target, long length) {
     }
 }
